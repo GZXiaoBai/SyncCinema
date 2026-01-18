@@ -17,7 +17,7 @@ interface ChatBoxProps {
     isHost: boolean
 }
 
-export default function ChatBox({ messages, onSendMessage, username, isHost }: ChatBoxProps) {
+export default function ChatBox({ messages, onSendMessage, username }: ChatBoxProps) {
     const [isOpen, setIsOpen] = useState(true)
     const [inputValue, setInputValue] = useState('')
     const [isMinimized, setIsMinimized] = useState(false)
@@ -131,8 +131,8 @@ export default function ChatBox({ messages, onSendMessage, username, isHost }: C
                                     </div>
                                     <div
                                         className={`max-w-[85%] px-3 py-2 rounded-xl text-sm break-words ${msg.username === username
-                                                ? 'gradient-primary text-white rounded-br-sm'
-                                                : 'bg-[var(--surface)] text-white rounded-bl-sm'
+                                            ? 'gradient-primary text-white rounded-br-sm'
+                                            : 'bg-[var(--surface)] text-white rounded-bl-sm'
                                             }`}
                                     >
                                         {msg.content}

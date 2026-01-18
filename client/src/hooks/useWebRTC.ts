@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import type { RefObject } from 'react'
 // import Peer from 'peerjs' // 移除 import，改用 CDN 全局变量
 // import type { DataConnection } from 'peerjs' // 类型定义可以通过 npm 安装 @types/peerjs 或自己定义
@@ -72,7 +72,7 @@ type Payload = SyncState | SeekState | HeartbeatState | UserJoinedState | ChatMe
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
 
 export function useWebRTC({ roomId, isHost, playerRef, videoUrl, username, enabled = true }: UseWebRTCOptions) {
-    const [peer, setPeer] = useState<any>(null) // 使用 any，因为我们移除了 import
+    const [_peer, setPeer] = useState<any>(null) // 使用 any，因为我们移除了 import
     const [connections, setConnections] = useState<DataConnection[]>([])
     const [users, setUsers] = useState(1)
     const [isPlaying, setIsPlaying] = useState(false)

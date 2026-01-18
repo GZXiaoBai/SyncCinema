@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Play, Users, Sparkles, Film, Globe, Wifi, Copy, Check, Zap } from 'lucide-react'
+import { Users, Film, Globe, Wifi, Zap, Sparkles } from 'lucide-react'
 
 // 获取本机 IP 地址的函数（在 Electron 环境中通过 IPC 获取）
 declare global {
@@ -20,23 +20,7 @@ export default function Home() {
     const [roomIdInput, setRoomIdInput] = useState('')
     const [serverAddressInput, setServerAddressInput] = useState('')
     const [error, setError] = useState('')
-    const [localIPs, setLocalIPs] = useState<string[]>([])
-    const [copied, setCopied] = useState(false)
-    const [connectionMode, setConnectionMode] = useState<'local' | 'remote' | 'p2p'>('p2p') // 默认为 P2P
-
-    // 获取本机 IP 地址
-    useEffect(() => {
-        const getIPs = async () => {
-            if (window.electronAPI?.getLocalIPs) {
-                const ips = await window.electronAPI.getLocalIPs()
-                setLocalIPs(ips)
-            } else {
-                // 浏览器模式，使用 localhost
-                setLocalIPs(['localhost'])
-            }
-        }
-        getIPs()
-    }, [])
+    const [connectionMode, setConnectionMode] = useState<'local' | 'remote' | 'p2p'>('p2p')
 
     const handleCreateRoom = (mode: 'server' | 'p2p') => {
         // 生成随机 6 位房间号
@@ -62,12 +46,6 @@ export default function Home() {
         } else {
             navigate(`/room/${roomIdInput.toUpperCase()}`)
         }
-    }
-
-    const copyIP = async (ip: string) => {
-        await navigator.clipboard.writeText(`${ip}:3001`)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
     }
 
     return (
@@ -163,8 +141,8 @@ export default function Home() {
                             <button
                                 onClick={() => setConnectionMode('p2p')}
                                 className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium ${connectionMode === 'p2p'
-                                        ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
-                                        : 'border-[var(--border)] text-[var(--text-secondary)]'
+                                    ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
+                                    : 'border-[var(--border)] text-[var(--text-secondary)]'
                                     }`}
                             >
                                 <Zap className="w-4 h-4" />
@@ -173,8 +151,8 @@ export default function Home() {
                             <button
                                 onClick={() => setConnectionMode('local')}
                                 className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium ${connectionMode === 'local'
-                                        ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
-                                        : 'border-[var(--border)] text-[var(--text-secondary)]'
+                                    ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
+                                    : 'border-[var(--border)] text-[var(--text-secondary)]'
                                     }`}
                             >
                                 <Wifi className="w-4 h-4" />
@@ -183,8 +161,8 @@ export default function Home() {
                             <button
                                 onClick={() => setConnectionMode('remote')}
                                 className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium ${connectionMode === 'remote'
-                                        ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
-                                        : 'border-[var(--border)] text-[var(--text-secondary)]'
+                                    ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
+                                    : 'border-[var(--border)] text-[var(--text-secondary)]'
                                     }`}
                             >
                                 <Globe className="w-4 h-4" />
