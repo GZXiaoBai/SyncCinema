@@ -14,9 +14,9 @@
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
     "electron:build": "npm run build && electron-builder",
-    "electron:build:mac": "npm run build && electron-builder --mac",
-    "electron:build:win": "npm run build && electron-builder --win",
-    "electron:build:all": "npm run build && electron-builder --mac --win"
+    "electron:build:mac": "electron-builder --mac",
+    "electron:build:win": "electron-builder --win",
+    "electron:build:all": "electron-builder --mac --win"
   },
   "build": {
     "appId": "com.synccinema.app",
@@ -28,6 +28,7 @@
       "electron/**/*"
     ],
     "mac": {
+      "identity": null,
       "category": "public.app-category.entertainment",
       "target": [
         {
