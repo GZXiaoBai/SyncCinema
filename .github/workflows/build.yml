@@ -1,0 +1,60 @@
+name: Build/Release
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install Dependencies
+        run: |
+          cd client
+          npm install
+
+      - name: Build React App
+        run: |
+          cd client
+          npm run build
+
+      - name: Build Electron App (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          cd client
+          npm run electron:build:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Electron App (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cd client
+          npm run electron:build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SyncCinema-${{ matrix.os }}
+          path: |
+            client/release/*.dmg
+            client/release/*.exe

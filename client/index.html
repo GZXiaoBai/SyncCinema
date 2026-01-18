@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SyncCinema</title>
+  <script>
+    // 强力 Polyfill：模拟 Node.js 环境，解决 PeerJS 和其他库的兼容性问题
+    if (typeof global === 'undefined') {
+      window.global = window;
+    }
+    if (typeof process === 'undefined') {
+      window.process = { env: { DEBUG: undefined }, version: '' };
+    }
+    // 简单的 Buffer polyfill (如果需要)
+    if (typeof Buffer === 'undefined') {
+      window.Buffer = { isBuffer: () => false };
+    }
+  </script>
+  <!-- 直接引入 PeerJS，避开 Vite 构建问题 -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>
