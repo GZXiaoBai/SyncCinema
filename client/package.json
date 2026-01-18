@@ -31,7 +31,6 @@
     ],
     "mac": {
       "category": "public.app-category.entertainment",
-      "icon": "public/icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -43,7 +42,6 @@
       ]
     },
     "win": {
-      "icon": "public/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -55,10 +53,7 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "installerIcon": "public/icon.ico",
-      "uninstallerIcon": "public/icon.ico",
-      "installerHeaderIcon": "public/icon.ico"
+      "allowToChangeInstallationDirectory": true
     }
   },
   "dependencies": {
