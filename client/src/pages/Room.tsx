@@ -5,6 +5,11 @@ import VideoPlayer from '../components/VideoPlayer'
 import ChatBox from '../components/ChatBox'
 import { useRoomSync } from '../hooks/useRoomSync'
 
+interface ReactPlayerMethods {
+    getCurrentTime: () => number
+    seekTo: (amount: number, type?: 'seconds' | 'fraction' | 'percentage') => void
+}
+
 // 生成随机用户名
 const generateUsername = () => {
     const adjectives = [
@@ -33,10 +38,10 @@ export default function Room() {
 
     const [videoUrl, setVideoUrl] = useState<string>('')
     const [copied, setCopied] = useState(false)
-    const playerRef = useRef<ReactPlayerMethods>(null)
+    const playerRef = useRef<ReactPlayerMethods | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const videoUrlRef = useRef<string | null>(null)
-    const timerRef = useRef<NodeJS.Timeout | null>(null)
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     // 生成稳定的用户名
     const username = useMemo(() => isHost ? '主机' : generateUsername(), [isHost])

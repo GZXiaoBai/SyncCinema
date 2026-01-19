@@ -6,7 +6,7 @@ interface Message {
     userId: string
     username: string
     content: string
-    timestamp: Date
+    timestamp: string | Date
     isHost: boolean
 }
 
@@ -44,7 +44,7 @@ export default function ChatBox({ messages, onSendMessage, username }: ChatBoxPr
         }
     }
 
-    const formatTime = (date: Date) => {
+    const formatTime = (date: string | Date) => {
         return new Date(date).toLocaleTimeString('zh-CN', {
             hour: '2-digit',
             minute: '2-digit'

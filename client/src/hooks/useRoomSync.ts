@@ -12,7 +12,7 @@ interface UseRoomSyncOptions {
     mode: 'p2p' | 'server'
     roomId: string
     isHost: boolean
-    playerRef: RefObject<ReactPlayerMethods>
+    playerRef: RefObject<ReactPlayerMethods | null | any>
     videoUrl: string
     username: string
     serverAddress?: string

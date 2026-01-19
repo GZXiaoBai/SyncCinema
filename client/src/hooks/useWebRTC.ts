@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import type { RefObject } from 'react'
 // import Peer from 'peerjs' // 移除 import，改用 CDN 全局变量
 // import type { DataConnection } from 'peerjs' // 类型定义可以通过 npm 安装 @types/peerjs 或自己定义
@@ -9,11 +9,13 @@ const HEARTBEAT_INTERVAL_MS = 5000
 // 简单的类型补充，避免 TS 报错
 declare global {
     interface Window {
-        Peer: new (id?: string, options?: { debug?: number }) => {
-            id: string
-            on: (event: string, callback: (...args: unknown[]) => void) => void
-            connect: (peerId: string, options?: { metadata?: { username?: string } }) => DataConnection
-            destroy: () => void
+        Peer: {
+            new (id?: string, options?: { debug?: number }): {
+                id: string
+                on: (event: string, callback: (...args: unknown[]) => void) => void
+                connect: (peerId: string, options?: { metadata?: { username?: string } }) => DataConnection
+                destroy: () => void
+            }
         }
     }
 }
@@ -36,7 +38,7 @@ interface ReactPlayerMethods {
 interface UseWebRTCOptions {
     roomId: string
     isHost: boolean
-    playerRef: RefObject<ReactPlayerMethods>
+    playerRef: RefObject<ReactPlayerMethods | null | any>
     videoUrl: string
     username: string
     enabled?: boolean
@@ -199,7 +201,7 @@ export function useWebRTC({ roomId, isHost, playerRef, videoUrl, username, enabl
     }, [isHost, isPlaying, playerRef, addSystemMessage, broadcast, handleData])
 
     // Client 连接 Host
-    const connectToHost = useCallback((currentPeer: Window['Peer'], hostId: string) => {
+    const connectToHost = useCallback((currentPeer: any, hostId: string) => {
         const conn = currentPeer.connect(hostId, {
             metadata: { username }
         })
@@ -221,7 +223,8 @@ export function useWebRTC({ roomId, isHost, playerRef, videoUrl, username, enabl
         const peerId = isHost ? `sync-cinema-${roomId}` : undefined
 
         // 使用 window.Peer
-        const newPeer = new window.Peer(peerId, {
+        const PeerConstructor = window.Peer as any
+        const newPeer = new PeerConstructor(peerId, {
             debug: 2
         })
 

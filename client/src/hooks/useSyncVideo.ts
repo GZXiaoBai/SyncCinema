@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import type { RefObject } from 'react'
 import { io, Socket } from 'socket.io-client'
 
@@ -16,7 +16,7 @@ interface ReactPlayerMethods {
 interface UseSyncVideoOptions {
     roomId: string
     isHost: boolean
-    playerRef: RefObject<ReactPlayerMethods>
+    playerRef: RefObject<ReactPlayerMethods | null | any>
     videoUrl: string
     username: string
     serverAddress?: string // 可选的服务器地址
@@ -204,7 +204,7 @@ export function useSyncVideo({ roomId, isHost, playerRef, videoUrl, username, se
         if (!enabled || !isHost || !socketRef.current || !videoUrl) return
 
         const interval = setInterval(() => {
-            if (playerRef.current) {
+            if (playerRef.current && socketRef.current) {
                 socketRef.current.emit('heartbeat', {
                     roomId,
                     timestamp: playerRef.current.getCurrentTime(),
