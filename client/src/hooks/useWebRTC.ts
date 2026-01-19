@@ -3,27 +3,40 @@ import type { RefObject } from 'react'
 // import Peer from 'peerjs' // 移除 import，改用 CDN 全局变量
 // import type { DataConnection } from 'peerjs' // 类型定义可以通过 npm 安装 @types/peerjs 或自己定义
 
+const SYNC_THRESHOLD_SECONDS = 2
+const HEARTBEAT_INTERVAL_MS = 5000
+
 // 简单的类型补充，避免 TS 报错
 declare global {
     interface Window {
-        Peer: any
+        Peer: new (id?: string, options?: { debug?: number }) => {
+            id: string
+            on: (event: string, callback: (...args: unknown[]) => void) => void
+            connect: (peerId: string, options?: { metadata?: { username?: string } }) => DataConnection
+            destroy: () => void
+        }
     }
 }
 
 // 模拟 DataConnection 类型
 interface DataConnection {
     peer: string
-    metadata: any
+    metadata?: { username?: string }
     open: boolean
-    send: (data: any) => void
-    on: (event: string, cb: (...args: any[]) => void) => void
+    send: (data: Payload) => void
+    on: (event: string, cb: (...args: unknown[]) => void) => void
     close: () => void
+}
+
+interface ReactPlayerMethods {
+    getCurrentTime: () => number
+    seekTo: (amount: number, type?: 'seconds' | 'fraction' | 'percentage') => void
 }
 
 interface UseWebRTCOptions {
     roomId: string
     isHost: boolean
-    playerRef: RefObject<any>
+    playerRef: RefObject<ReactPlayerMethods>
     videoUrl: string
     username: string
     enabled?: boolean
@@ -72,7 +85,7 @@ type Payload = SyncState | SeekState | HeartbeatState | UserJoinedState | ChatMe
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
 
 export function useWebRTC({ roomId, isHost, playerRef, videoUrl, username, enabled = true }: UseWebRTCOptions) {
-    const [_peer, setPeer] = useState<any>(null) // 使用 any，因为我们移除了 import
+    const socketRef = useRef<Window['Peer'] | null>(null)
     const [connections, setConnections] = useState<DataConnection[]>([])
     const [users, setUsers] = useState(1)
     const [isPlaying, setIsPlaying] = useState(false)
@@ -82,79 +95,66 @@ export function useWebRTC({ roomId, isHost, playerRef, videoUrl, username, enabl
     const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting')
     const [myPeerId, setMyPeerId] = useState<string>('')
 
-    // 初始化 Peer
-    useEffect(() => {
-        if (!enabled || !roomId) return
+    // 添加系统消息
+    const addSystemMessage = useCallback((content: string) => {
+        setMessages(prev => [...prev, {
+            id: `sys-${Date.now()}`,
+            userId: 'system',
+            username: '系统',
+            content,
+            timestamp: new Date().toISOString(),
+            isHost: false
+        }])
+    }, [])
 
-        // 检查 window.Peer 是否存在
-        if (!(window as any).Peer) {
-            console.error('PeerJS 库未加载！')
-            setConnectionStatus('error')
-            addSystemMessage('WebRTC 库加载失败，请检查网络连接')
-            return
-        }
-
-        const peerId = isHost ? `sync-cinema-${roomId}` : undefined
-
-        console.log('正在初始化 Peer (CDN Mode), ID:', peerId)
-
-        // 使用 window.Peer
-        const PeerClass = (window as any).Peer
-        const newPeer = new PeerClass(peerId, {
-            debug: 2
-        })
-
-        newPeer.on('open', (id: string) => {
-            console.log('Peer 打开:', id)
-            setMyPeerId(id)
-            setConnectionStatus(isHost ? 'connected' : 'connecting')
-
-            if (!isHost) {
-                // Client 主动连接 Host
-                connectToHost(newPeer, `sync-cinema-${roomId}`)
+    // 广播消息 (Host Only)
+    const broadcast = useCallback((data: Payload, excludePeerId?: string) => {
+        if (!isHost) return
+        connections.forEach(conn => {
+            if (conn.peer !== excludePeerId) {
+                conn.send(data)
             }
         })
+    }, [isHost, connections])
 
-        newPeer.on('connection', (conn: any) => {
-            // Host 收到连接
-            if (isHost) {
-                handleConnection(conn)
-            } else {
-                conn.close()
-            }
-        })
-
-        newPeer.on('error', (err: any) => {
-            console.error('Peer 错误:', err)
-            setConnectionStatus('error')
-            addSystemMessage(`P2P 连接错误: ${err.message}`)
-        })
-
-        newPeer.on('disconnected', () => {
-            console.log('Peer 断开连接')
-            setConnectionStatus('disconnected')
-        })
-
-        setPeer(newPeer)
-
-        return () => {
-            newPeer.destroy()
+    // 处理接收到的数据
+    const handleData = useCallback((data: Payload, fromConn: DataConnection) => {
+        switch (data.type) {
+            case 'sync_status':
+                if (!isHost) {
+                    setIsPlaying(data.isPlaying)
+                    setSyncedTime(data.timestamp)
+                }
+                break
+            case 'sync_seek':
+                if (!isHost) {
+                    setSyncedTime(data.timestamp)
+                }
+                break
+            case 'heartbeat':
+                if (!isHost) {
+                    setIsPlaying(data.isPlaying)
+                    if (playerRef.current && Math.abs(playerRef.current.getCurrentTime() - data.timestamp) > SYNC_THRESHOLD_SECONDS) {
+                        setSyncedTime(data.timestamp)
+                    }
+                }
+                break
+            case 'user_joined':
+                addSystemMessage(`${data.username} 加入了房间`)
+                break
+            case 'chat_message':
+                setMessages(prev => [...prev, data.message])
+                // 如果是 Host 收到消息，转发给其他人
+                if (isHost) {
+                    broadcast(data, fromConn.peer)
+                }
+                break
         }
-    }, [roomId, isHost, enabled])
-
-    // Client 连接 Host
-    const connectToHost = (currentPeer: any, hostId: string) => {
-        console.log('正在连接 Host:', hostId)
-        const conn = currentPeer.connect(hostId, {
-            metadata: { username }
-        })
-        handleConnection(conn)
-    }
+    }, [isHost, playerRef, addSystemMessage, broadcast])
 
     // 处理连接
-    const handleConnection = (conn: DataConnection) => {
+    const handleConnection = useCallback((conn: DataConnection) => {
         conn.on('open', () => {
-            console.log('连接建立:', conn.peer)
             setConnections(prev => [...prev, conn])
 
             if (!isHost) {
@@ -181,12 +181,11 @@ export function useWebRTC({ roomId, isHost, playerRef, videoUrl, username, enabl
             }
         })
 
-        conn.on('data', (data: any) => {
-            handleData(data, conn)
+        conn.on('data', (data: unknown) => {
+            handleData(data as Payload, conn)
         })
 
         conn.on('close', () => {
-            console.log('连接关闭:', conn.peer)
             setConnections(prev => prev.filter(c => c.peer !== conn.peer))
             if (isHost) {
                 setUsers(prev => Math.max(1, prev - 1))
@@ -197,64 +196,70 @@ export function useWebRTC({ roomId, isHost, playerRef, videoUrl, username, enabl
                 addSystemMessage('与主机的 P2P 连接已断开')
             }
         })
-    }
+    }, [isHost, isPlaying, playerRef, addSystemMessage, broadcast, handleData])
 
-    // 处理接收到的数据
-    const handleData = (data: Payload, fromConn: DataConnection) => {
-        switch (data.type) {
-            case 'sync_status':
-                if (!isHost) {
-                    setIsPlaying(data.isPlaying)
-                    setSyncedTime(data.timestamp)
-                }
-                break
-            case 'sync_seek':
-                if (!isHost) {
-                    setSyncedTime(data.timestamp)
-                }
-                break
-            case 'heartbeat':
-                if (!isHost) {
-                    setIsPlaying(data.isPlaying)
-                    if (playerRef.current && Math.abs(playerRef.current.getCurrentTime() - data.timestamp) > 2) {
-                        setSyncedTime(data.timestamp)
-                    }
-                }
-                break
-            case 'user_joined':
-                addSystemMessage(`${data.username} 加入了房间`)
-                break
-            case 'chat_message':
-                setMessages(prev => [...prev, data.message])
-                // 如果是 Host 收到消息，转发给其他人
-                if (isHost) {
-                    broadcast(data, fromConn.peer)
-                }
-                break
+    // Client 连接 Host
+    const connectToHost = useCallback((currentPeer: Window['Peer'], hostId: string) => {
+        const conn = currentPeer.connect(hostId, {
+            metadata: { username }
+        })
+        handleConnection(conn)
+    }, [username, handleConnection])
+
+    // 初始化 Peer
+    useEffect(() => {
+        if (!enabled || !roomId) return
+
+        // 检查 window.Peer 是否存在
+        if (!window.Peer) {
+            console.error('PeerJS 库未加载！')
+            setTimeout(() => setConnectionStatus('error'), 0)
+            setTimeout(() => addSystemMessage('WebRTC 库加载失败，请检查网络连接'), 0)
+            return
         }
-    }
 
-    // 广播消息 (Host Only)
-    const broadcast = (data: Payload, excludePeerId?: string) => {
-        if (!isHost) return
-        connections.forEach(conn => {
-            if (conn.peer !== excludePeerId) {
-                conn.send(data)
+        const peerId = isHost ? `sync-cinema-${roomId}` : undefined
+
+        // 使用 window.Peer
+        const newPeer = new window.Peer(peerId, {
+            debug: 2
+        })
+
+        newPeer.on('open', (id: string) => {
+            setMyPeerId(id)
+            setConnectionStatus(isHost ? 'connected' : 'connecting')
+
+            if (!isHost) {
+                // Client 主动连接 Host
+                connectToHost(newPeer, `sync-cinema-${roomId}`)
             }
         })
-    }
 
-    // 添加系统消息
-    const addSystemMessage = (content: string) => {
-        setMessages(prev => [...prev, {
-            id: `sys-${Date.now()}`,
-            userId: 'system',
-            username: '系统',
-            content,
-            timestamp: new Date().toISOString(),
-            isHost: false
-        }])
-    }
+        newPeer.on('connection', (conn: DataConnection) => {
+            // Host 收到连接
+            if (isHost) {
+                handleConnection(conn)
+            } else {
+                conn.close()
+            }
+        })
+
+        newPeer.on('error', (err: unknown) => {
+            console.error('Peer 错误:', err)
+            setConnectionStatus('error')
+            addSystemMessage(`P2P 连接错误: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        })
+
+        newPeer.on('disconnected', () => {
+            setConnectionStatus('disconnected')
+        })
+
+        socketRef.current = newPeer
+
+        return () => {
+            newPeer.destroy()
+        }
+    }, [roomId, isHost, enabled, connectToHost, addSystemMessage, handleConnection])
 
     // Host 心跳
     useEffect(() => {
@@ -268,10 +273,10 @@ export function useWebRTC({ roomId, isHost, playerRef, videoUrl, username, enabl
                     isPlaying
                 })
             }
-        }, 5000)
+        }, HEARTBEAT_INTERVAL_MS)
 
         return () => clearInterval(interval)
-    }, [enabled, isHost, connections, isPlaying, playerRef, videoUrl])
+    }, [enabled, isHost, connections.length, isPlaying, playerRef, videoUrl, broadcast])
 
     // Actions
     const handlePlay = useCallback(() => {
@@ -279,19 +284,19 @@ export function useWebRTC({ roomId, isHost, playerRef, videoUrl, username, enabl
         setIsPlaying(true)
         const timestamp = playerRef.current?.getCurrentTime() || 0
         broadcast({ type: 'sync_status', isPlaying: true, timestamp })
-    }, [enabled, isHost, playerRef, connections])
+    }, [enabled, isHost, playerRef, broadcast])
 
     const handlePause = useCallback(() => {
         if (!enabled || !isHost) return
         setIsPlaying(false)
         const timestamp = playerRef.current?.getCurrentTime() || 0
         broadcast({ type: 'sync_status', isPlaying: false, timestamp })
-    }, [enabled, isHost, playerRef, connections])
+    }, [enabled, isHost, playerRef, broadcast])
 
     const handleSeek = useCallback((time: number) => {
         if (!enabled || !isHost) return
         broadcast({ type: 'sync_seek', timestamp: time })
-    }, [enabled, isHost, connections])
+    }, [enabled, isHost, broadcast])
 
     const handleProgress = useCallback((state: { playedSeconds: number }) => {
         setCurrentTime(state.playedSeconds)
@@ -322,7 +327,7 @@ export function useWebRTC({ roomId, isHost, playerRef, videoUrl, username, enabl
             // Client 发送给 Host
             connections.forEach(conn => conn.send(payload))
         }
-    }, [enabled, connections, myPeerId, username, isHost])
+    }, [enabled, connections, myPeerId, username, isHost, broadcast])
 
     return {
         users,

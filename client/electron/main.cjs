@@ -8,13 +8,17 @@ let mainWindow = null
 let serverInstance = null
 
 function createWindow() {
+    const iconPath = path.join(__dirname, '../public/icon.png')
+    const fs = require('fs')
+    const iconExists = fs.existsSync(iconPath)
+
     mainWindow = new BrowserWindow({
         width: 1400,
         height: 900,
         minWidth: 1024,
         minHeight: 768,
         title: 'SyncCinema - 同步影院',
-        icon: path.join(__dirname, '../public/icon.png'),
+        icon: iconExists ? iconPath : undefined,
         backgroundColor: '#0f0f23',
         titleBarStyle: 'hiddenInset',
         trafficLightPosition: { x: 15, y: 15 },

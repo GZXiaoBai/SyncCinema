@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { Copy, Check, Users, ArrowLeft, Upload, Zap, Wifi } from 'lucide-react'
 import VideoPlayer from '../components/VideoPlayer'
@@ -7,11 +7,20 @@ import { useRoomSync } from '../hooks/useRoomSync'
 
 // 生成随机用户名
 const generateUsername = () => {
-    const adjectives = ['快乐的', '可爱的', '酷酷的', '神秘的', '闪亮的', '聪明的']
-    const nouns = ['小猫', '小狗', '熊猫', '兔子', '狐狸', '企鹅']
+    const adjectives = [
+        '快乐的', '可爱的', '酷酷的', '神秘的', '闪亮的', '聪明的',
+        '勇敢的', '温柔的', '活泼的', '安静的', '热情的', '冷静的',
+        '幽默的', '严肃的', '自由的', '勤奋的', '优雅的', '俏皮的'
+    ]
+    const nouns = [
+        '小猫', '小狗', '熊猫', '兔子', '狐狸', '企鹅',
+        '老虎', '狮子', '大象', '长颈鹿', '考拉', '袋鼠',
+        '海豚', '鲸鱼', '海鸥', '蝴蝶', '蜜蜂', '蚂蚁'
+    ]
     const adj = adjectives[Math.floor(Math.random() * adjectives.length)]
     const noun = nouns[Math.floor(Math.random() * nouns.length)]
-    return `${adj}${noun}`
+    const number = Math.floor(Math.random() * 100)
+    return `${adj}${noun}${number}`
 }
 
 export default function Room() {
@@ -24,8 +33,10 @@ export default function Room() {
 
     const [videoUrl, setVideoUrl] = useState<string>('')
     const [copied, setCopied] = useState(false)
-    const playerRef = useRef<any>(null)
+    const playerRef = useRef<ReactPlayerMethods>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const videoUrlRef = useRef<string | null>(null)
+    const timerRef = useRef<NodeJS.Timeout | null>(null)
 
     // 生成稳定的用户名
     const username = useMemo(() => isHost ? '主机' : generateUsername(), [isHost])
@@ -55,18 +66,39 @@ export default function Room() {
     // Hook 可能返回空 connectionStatus，如果还没初始化
     const status = connectionStatus || 'connecting'
 
+    // 清理资源
+    useEffect(() => {
+        return () => {
+            if (videoUrlRef.current) {
+                URL.revokeObjectURL(videoUrlRef.current)
+                videoUrlRef.current = null
+            }
+            if (timerRef.current) {
+                clearTimeout(timerRef.current)
+                timerRef.current = null
+            }
+        }
+    }, [])
+
     const handleCopyRoomId = async () => {
         if (roomId) {
             await navigator.clipboard.writeText(roomId)
             setCopied(true)
-            setTimeout(() => setCopied(false), 2000)
+            if (timerRef.current) {
+                clearTimeout(timerRef.current)
+            }
+            timerRef.current = setTimeout(() => setCopied(false), 2000)
         }
     }
 
     const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (file) {
+            if (videoUrlRef.current) {
+                URL.revokeObjectURL(videoUrlRef.current)
+            }
             const url = URL.createObjectURL(file)
+            videoUrlRef.current = url
             setVideoUrl(url)
         }
     }, [])

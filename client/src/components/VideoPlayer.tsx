@@ -1,7 +1,11 @@
-// @ts-nocheck
-import { forwardRef, useState, useRef, useEffect } from 'react'
+import { forwardRef, useState, useRef, useEffect, useImperativeHandle } from 'react'
 import ReactPlayer from 'react-player'
 import { Play, Pause, Volume2, VolumeX, Maximize, Minimize } from 'lucide-react'
+
+interface ReactPlayerMethods {
+    getCurrentTime: () => number
+    seekTo: (amount: number, type?: 'seconds' | 'fraction' | 'percentage') => void
+}
 
 interface VideoPlayerProps {
     url: string
@@ -14,7 +18,7 @@ interface VideoPlayerProps {
     onProgress: (state: { playedSeconds: number }) => void
 }
 
-const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
+const VideoPlayer = forwardRef<ReactPlayerMethods, VideoPlayerProps>(({
     url,
     isHost,
     isPlaying,
@@ -24,6 +28,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     onSeek,
     onProgress
 }, ref) => {
+    const playerRef = useRef<ReactPlayerMethods | null>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const [volume, setVolume] = useState(0.8)
     const [muted, setMuted] = useState(false)
@@ -34,15 +39,22 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     const [showControls, setShowControls] = useState(true)
     const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+    useImperativeHandle(ref, () => ({
+        getCurrentTime: () => playerRef.current?.getCurrentTime() ?? 0,
+        seekTo: (amount: number, type?: 'seconds' | 'fraction' | 'percentage') => {
+            playerRef.current?.seekTo(amount, type)
+        }
+    }))
+
     // 同步时间更新
     useEffect(() => {
-        if (syncedTime !== null && !isHost && ref && 'current' in ref && ref.current) {
-            const currentTime = ref.current.getCurrentTime()
+        if (syncedTime !== null && !isHost && playerRef.current) {
+            const currentTime = playerRef.current.getCurrentTime()
             if (Math.abs(currentTime - syncedTime) > 2) {
-                ref.current.seekTo(syncedTime, 'seconds')
+                playerRef.current.seekTo(syncedTime, 'seconds')
             }
         }
-    }, [syncedTime, isHost, ref])
+    }, [syncedTime, isHost])
 
     // 自动隐藏控制栏
     useEffect(() => {
@@ -85,8 +97,8 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
         setSeeking(false)
         const target = e.target as HTMLInputElement
         const time = parseFloat(target.value) * duration
-        if (ref && 'current' in ref && ref.current) {
-            ref.current.seekTo(time, 'seconds')
+        if (playerRef.current) {
+            playerRef.current.seekTo(time, 'seconds')
         }
         if (isHost) {
             onSeek(time)
@@ -129,14 +141,14 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
             className="relative w-full h-full bg-black group"
         >
             <ReactPlayer
-                ref={ref}
+                ref={playerRef as unknown as React.RefObject<ReactPlayer>}
                 url={url}
                 width="100%"
                 height="100%"
                 playing={isPlaying}
                 volume={volume}
                 muted={muted}
-                onProgress={handleProgress as any}
+                onProgress={handleProgress}
                 onDuration={setDuration}
                 progressInterval={100}
                 style={{ position: 'absolute', top: 0, left: 0 }}

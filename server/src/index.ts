@@ -29,53 +29,57 @@ const usernames = new Map<string, string>()
 
 // Socket 连接处理
 io.on('connection', (socket) => {
-    console.log(`用户连接: ${socket.id}`)
-
     // 创建房间
     socket.on('create_room', ({ roomId, username }: { roomId: string; username: string }) => {
-        roomManager.createRoom(roomId, socket.id)
-        socket.join(roomId)
-        usernames.set(socket.id, username || '主机')
+        try {
+            roomManager.createRoom(roomId, socket.id)
+            socket.join(roomId)
+            usernames.set(socket.id, username || '主机')
 
-        console.log(`房间创建: ${roomId}, 主机: ${username}`)
-
-        // 发送房间信息
-        io.to(roomId).emit('room_info', {
-            users: roomManager.getRoomUserCount(roomId)
-        })
+            // 发送房间信息
+            io.to(roomId).emit('room_info', {
+                users: roomManager.getRoomUserCount(roomId)
+            })
+        } catch (error) {
+            console.error('创建房间错误:', error)
+            socket.emit('error', { message: '创建房间失败' })
+        }
     })
 
     // 加入房间
     socket.on('join_room', ({ roomId, username }: { roomId: string; username: string }) => {
-        const room = roomManager.getRoom(roomId)
+        try {
+            const room = roomManager.getRoom(roomId)
 
-        if (!room) {
-            socket.emit('error', { message: '房间不存在' })
-            return
+            if (!room) {
+                socket.emit('error', { message: '房间不存在' })
+                return
+            }
+
+            roomManager.joinRoom(roomId, socket.id)
+            socket.join(roomId)
+            usernames.set(socket.id, username || '访客')
+
+            // 通知房间内所有人
+            io.to(roomId).emit('room_info', {
+                users: roomManager.getRoomUserCount(roomId)
+            })
+
+            // 通知主机和其他人有新用户加入
+            socket.to(roomId).emit('user_joined', {
+                userId: socket.id,
+                username: username || '访客'
+            })
+
+            // 发送当前播放状态给新加入的用户
+            socket.emit('sync_status', {
+                isPlaying: room.isPlaying,
+                timestamp: room.timestamp
+            })
+        } catch (error) {
+            console.error('加入房间错误:', error)
+            socket.emit('error', { message: '加入房间失败' })
         }
-
-        roomManager.joinRoom(roomId, socket.id)
-        socket.join(roomId)
-        usernames.set(socket.id, username || '访客')
-
-        console.log(`用户 ${username} 加入房间 ${roomId}`)
-
-        // 通知房间内所有人
-        io.to(roomId).emit('room_info', {
-            users: roomManager.getRoomUserCount(roomId)
-        })
-
-        // 通知主机和其他人有新用户加入
-        socket.to(roomId).emit('user_joined', {
-            userId: socket.id,
-            username: username || '访客'
-        })
-
-        // 发送当前播放状态给新加入的用户
-        socket.emit('sync_status', {
-            isPlaying: room.isPlaying,
-            timestamp: room.timestamp
-        })
     })
 
     // 同步状态 (播放/暂停)
@@ -84,15 +88,17 @@ io.on('connection', (socket) => {
         isPlaying: boolean
         timestamp: number
     }) => {
-        const room = roomManager.getRoom(roomId)
+        try {
+            const room = roomManager.getRoom(roomId)
 
-        if (room && room.hostId === socket.id) {
+            if (room && room.hostId === socket.id) {
             roomManager.updateRoomState(roomId, isPlaying, timestamp)
 
             // 广播给房间内除发送者外的所有人
             socket.to(roomId).emit('sync_status', { isPlaying, timestamp })
-
-            console.log(`同步状态: 房间 ${roomId}, 播放: ${isPlaying}, 时间: ${timestamp.toFixed(2)}s`)
+        }
+        } catch (error) {
+            console.error('同步状态错误:', error)
         }
     })
 
@@ -101,14 +107,16 @@ io.on('connection', (socket) => {
         roomId: string
         timestamp: number
     }) => {
-        const room = roomManager.getRoom(roomId)
+        try {
+            const room = roomManager.getRoom(roomId)
 
-        if (room && room.hostId === socket.id) {
+            if (room && room.hostId === socket.id) {
             roomManager.updateRoomState(roomId, room.isPlaying, timestamp)
 
             socket.to(roomId).emit('sync_seek', { timestamp })
-
-            console.log(`同步进度: 房间 ${roomId}, 跳转到 ${timestamp.toFixed(2)}s`)
+        }
+        } catch (error) {
+            console.error('同步进度错误:', error)
         }
     })
 
@@ -118,12 +126,16 @@ io.on('connection', (socket) => {
         timestamp: number
         isPlaying: boolean
     }) => {
-        const room = roomManager.getRoom(roomId)
+        try {
+            const room = roomManager.getRoom(roomId)
 
-        if (room && room.hostId === socket.id) {
-            roomManager.updateRoomState(roomId, isPlaying, timestamp)
+            if (room && room.hostId === socket.id) {
+                roomManager.updateRoomState(roomId, isPlaying, timestamp)
 
-            socket.to(roomId).emit('heartbeat', { timestamp, isPlaying })
+                socket.to(roomId).emit('heartbeat', { timestamp, isPlaying })
+            }
+        } catch (error) {
+            console.error('心跳错误:', error)
         }
     })
 
@@ -135,46 +147,51 @@ io.on('connection', (socket) => {
             userId: string
             username: string
             content: string
-            timestamp: Date
+            timestamp: string
             isHost: boolean
         }
     }) => {
-        // 广播给房间内除发送者外的所有人
-        socket.to(roomId).emit('chat_message', message)
-
-        console.log(`聊天消息: 房间 ${roomId}, ${message.username}: ${message.content}`)
+        try {
+            // 广播给房间内除发送者外的所有人
+            socket.to(roomId).emit('chat_message', message)
+        } catch (error) {
+            console.error('发送聊天消息错误:', error)
+        }
     })
 
     // 断开连接
     socket.on('disconnect', () => {
-        const username = usernames.get(socket.id) || '用户'
-        console.log(`用户断开: ${username}`)
+        try {
+            const username = usernames.get(socket.id) || '用户'
 
-        const roomId = roomManager.getUserRoom(socket.id)
+            const roomId = roomManager.getUserRoom(socket.id)
 
-        if (roomId) {
-            const room = roomManager.getRoom(roomId)
-            roomManager.leaveRoom(roomId, socket.id)
+            if (roomId) {
+                const room = roomManager.getRoom(roomId)
+                roomManager.leaveRoom(roomId, socket.id)
 
-            // 如果是主机离开，解散房间
-            if (room && room.hostId === socket.id) {
-                io.to(roomId).emit('room_closed', { message: '主机已离开，房间已关闭' })
-                roomManager.deleteRoom(roomId)
-            } else {
-                // 通知其他人
-                io.to(roomId).emit('room_info', {
-                    users: roomManager.getRoomUserCount(roomId)
-                })
+                // 如果是主机离开，解散房间
+                if (room && room.hostId === socket.id) {
+                    io.to(roomId).emit('room_closed', { message: '主机已离开，房间已关闭' })
+                    roomManager.deleteRoom(roomId)
+                } else {
+                    // 通知其他人
+                    io.to(roomId).emit('room_info', {
+                        users: roomManager.getRoomUserCount(roomId)
+                    })
 
-                // 通知用户离开
-                io.to(roomId).emit('user_left', {
-                    userId: socket.id,
-                    username
-                })
+                    // 通知用户离开
+                    io.to(roomId).emit('user_left', {
+                        userId: socket.id,
+                        username
+                    })
+                }
             }
-        }
 
-        usernames.delete(socket.id)
+            usernames.delete(socket.id)
+        } catch (error) {
+            console.error('断开连接错误:', error)
+        }
     })
 })
 

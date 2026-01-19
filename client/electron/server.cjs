@@ -83,13 +83,23 @@ function startServer(port = 3001) {
         httpServer = createServer(app)
 
         app.use(cors({
-            origin: '*',
+            origin: [
+                'http://localhost:5173',
+                'http://127.0.0.1:5173',
+                `http://localhost:${port}`,
+                `http://127.0.0.1:${port}`
+            ],
             methods: ['GET', 'POST']
         }))
 
         const io = new Server(httpServer, {
             cors: {
-                origin: '*',
+                origin: [
+                    'http://localhost:5173',
+                    'http://127.0.0.1:5173',
+                    `http://localhost:${port}`,
+                    `http://127.0.0.1:${port}`
+                ],
                 methods: ['GET', 'POST']
             }
         })

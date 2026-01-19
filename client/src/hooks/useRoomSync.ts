@@ -1,12 +1,18 @@
 import { } from 'react'
+import type { RefObject } from 'react'
 import { useSyncVideo } from './useSyncVideo'
 import { useWebRTC } from './useWebRTC'
+
+interface ReactPlayerMethods {
+    getCurrentTime: () => number
+    seekTo: (amount: number, type?: 'seconds' | 'fraction' | 'percentage') => void
+}
 
 interface UseRoomSyncOptions {
     mode: 'p2p' | 'server'
     roomId: string
     isHost: boolean
-    playerRef: any
+    playerRef: RefObject<ReactPlayerMethods>
     videoUrl: string
     username: string
     serverAddress?: string
