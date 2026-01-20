@@ -25,6 +25,7 @@
       "output": "release"
     },
     "files": [
+      "dist/**/*",
       "electron/**/*"
     ],
     "mac": {
